@@ -1,0 +1,155 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+import os
+import sys
+import json
+import urllib
+import httplib2
+import unicodecsv
+from datetime import datetime
+from optparse import OptionParser
+
+
+COUNTRY_API_ENDP = os.environ['COUNTRY_API_ENDP']
+URI_API_ENDP = os.environ['URI_API_ENDP']
+URI_API_USER = os.environ['URI_API_USER']
+URI_API_PASS = os.environ['URI_API_PASS']
+AUTH_API_ENDP = os.environ['AUTH_API_ENDP']
+URI_SCHEME = os.environ['URI_SCHEME']
+URI_STRICT = os.environ['URI_STRICT']
+WORK_TYPES = json.loads(os.getenv('WORK_TYPES'))
+CACHE = {}
+COUNTRY_CACHE = {}
+ARGS = [
+    {
+        'val': '--measure',
+        'dest': 'measure',
+        'action': 'store',
+        'default': None,
+        'help': 'Measure URI, e.g. tag:operas.eu,2018:readership:world-reader'
+    }, {
+        'val': '--add-headers',
+        'dest': 'add_headers',
+        'action': 'store_true',
+        'default': [],
+        'help': 'Whether to print report headers'
+    }
+]
+
+
+def get_options(args):
+    parser = OptionParser()
+    for arg in args:
+        parser.add_option(arg['val'], dest=arg['dest'],
+                          action=arg['action'], help=arg['help'])
+    options, rest = parser.parse_args()
+
+    assert rest == []
+    assert options.measure
+    return options
+
+
+def compile_work_types(types):
+    val = ''
+    i = 1
+    for t in types:
+        val += 'work_type:' + t
+        val += ',' if i < len(types) else ''
+        i += 1
+    return val
+
+
+def get_token(url, email, passwd):
+    h = httplib2.Http()
+    credentials = {'email': email, 'password': passwd}
+    headers = {'content-type': 'application/json'}
+    res, content = h.request(url, 'POST', json.dumps(credentials), headers)
+    try:
+        assert res.status == 200
+    except AssertionError:
+        raise ValueError(content)
+    return json.loads(content)['data'][0]['token']
+
+
+def title_to_id(title, timestamp):
+    title = urllib.quote(title.encode('utf8'))
+    if title in CACHE:
+        return CACHE[title]
+    req = "%s?title=%s&filter=uri_scheme:%s,%s&strict=%s" \
+          % (URI_API_ENDP, title, URI_SCHEME, TYPES, URI_STRICT)
+    h = httplib2.Http()
+    res, content = h.request(req, 'GET', headers={'Authorization': AUTH})
+    try:
+        assert res.status == 200
+    except AssertionError:
+        r = json.loads(content)
+        m = "%s: %s (%s)" % (r['message'], r['parameters']['title'], timestamp)
+        print >>sys.stderr, m
+        return []
+    entry = json.loads(content)['data']
+    CACHE[title] = entry
+    return entry
+
+
+def get_country_code(country_name):
+    country_name = urllib.quote(country_name.encode('utf8'))
+    if country_name in COUNTRY_CACHE:
+        return COUNTRY_CACHE[country_name]
+    req = "%s?country_name=%s" % (COUNTRY_API_ENDP, country_name)
+    h = httplib2.Http()
+    res, content = h.request(req, 'GET', headers={'Authorization': AUTH})
+    try:
+        assert res.status == 200
+    except AssertionError:
+        r = json.loads(content)
+        m = "%s: %s" % (r['message'], r['parameters']['country_name'])
+        print >>sys.stderr, m
+        return ""
+    code = json.loads(content)['data'][0]['country_id']
+    COUNTRY_CACHE[country_name] = code
+    return code
+
+
+def resolve():
+    r = json.load(sys.stdin)
+
+    for row in r['data']['rows']:
+        title, author, publisher, country, date, users, views, uuid = row
+
+        datetime_obj = datetime.strptime(date, '%m-%y')
+        timestamp = datetime_obj.strftime('%Y-%m-%d 00:00:00')
+
+        country_code = get_country_code(country)
+        try:
+            assert country_code
+        except AssertionError:
+            continue
+
+        for identifier in title_to_id(title, timestamp):
+            uri = identifier['URI']
+            yield (timestamp, uri, country_code, users)
+
+
+def run(measure, add_headers):
+    hits = {}
+    for timestamp, uri, country, value in resolve():
+        key = (timestamp, uri, country)
+        if key not in hits:
+            hits[key] = 0
+        hits[key] += int(value)
+
+    w = unicodecsv.writer(sys.stdout)
+    if add_headers:
+        w.writerow(('Measure', 'Timestamp', 'URI', 'Country', 'Value'))
+    for key, value in hits.iteritems():
+        row = tuple([measure] + list(key) + [value])
+        w.writerow(row)
+
+
+API_JWTOKEN = get_token(AUTH_API_ENDP, URI_API_USER, URI_API_PASS)
+AUTH = 'Bearer ' + API_JWTOKEN
+TYPES = compile_work_types(WORK_TYPES)
+
+if __name__ == '__main__':
+    options = get_options(ARGS)
+    run(options.measure, options.add_headers)

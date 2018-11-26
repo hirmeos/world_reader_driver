@@ -1,0 +1,111 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+import re
+import os
+import sys
+import json
+import httplib2
+from optparse import OptionParser
+
+
+ARGS = [
+    {
+        'val': '--report-url',
+        'dest': 'urls',
+        'action': 'append',
+        'help': 'URL to WR a month dashboard report'
+    }, {
+        'val': '--name',
+        'dest': 'report_name',
+        'action': 'store',
+        'help': 'Name used to prefix output'
+    }, {
+        'val': '--outdir',
+        'dest': 'outdir',
+        'action': 'store',
+        'help': 'Directory where output is stored'
+    }
+]
+
+
+def get_report(url):
+    h = httplib2.Http()
+    res, content = h.request(url, 'GET')
+    try:
+        assert res.status == 200
+    except AssertionError:
+        m = "Could not retrieve WR report (%d): %s"
+        sys.stderr.write(m % (res.status, url))
+    return json.loads(content)
+
+
+def get_api_url(url):
+    try:
+        matched = re.search(re.compile(".+?(?=#)"), url).group(0)
+        api = re.sub(r'https://mb.wrdr.io', r'https://mb.wrdr.io/api', matched)
+        result = api + "/dashcard/307/card/530"
+    except AttributeError:
+        return ""
+    return result
+
+
+def get_date_range(report):
+    params = report['json_query']['parameters']
+    for param in params:
+        if param['slug'] == 'date_range':
+            # date range is given in the form of date~date
+            # e.g. "2018-06-01~2018-06-30"
+            return param['value'].replace('~', '_')
+    return ""
+
+
+def get_output_filename(odir, name, date):
+    return "%s/%s_%s.json" % (odir, name, date)
+
+
+def exists_and_not_empty(filename):
+    try:
+        return os.path.getsize(filename) > 0
+    except (AssertionError, OSError):
+        return False
+
+
+def get_options(args):
+    parser = OptionParser()
+    for arg in args:
+        parser.add_option(arg['val'], dest=arg['dest'],
+                          action=arg['action'], help=arg['help'])
+    options, rest = parser.parse_args()
+
+    assert rest == []
+    assert options.urls and options.report_name and options.outdir
+    return options
+
+
+def run():
+    options = get_options(ARGS)
+
+    for url in options.urls:
+        api_url = get_api_url(url)
+        try:
+            assert api_url
+        except AssertionError:
+            sys.stderr.write("Malformed report URL: %s" % (url))
+            continue
+        report = get_report(api_url)
+        try:
+            daterange = get_date_range(report)
+            assert daterange
+        except AssertionError:
+            m = "Could not find a date range. They've changed the report! %s"
+            sys.stderr.write(m % (api_url))
+            raise
+        filename = get_output_filename(options.outdir, options.report_name,
+                                       daterange)
+        if not exists_and_not_empty(filename):
+            with open(filename, 'w') as f:
+                json.dump(report, f)
+
+
+if __name__ == '__main__':
+    run()
