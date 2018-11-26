@@ -1,0 +1,72 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+import re
+import os
+import json
+import subprocess
+from glob import glob
+
+MODES = json.loads(os.getenv('MODES'))
+OUTDIR = os.environ['OUTDIR']
+CACHEDIR = os.environ['CACHEDIR']
+
+
+def outstream(filename):
+    return open(filename, "w")
+
+
+def instream(filename):
+    return open(filename, "r")
+
+
+def get_output_filename(odir, date):
+    return "%s/WorldReader_%s.csv" % (odir, date)
+
+
+def compile_report_urls(config_list):
+    vals = []
+    for c in config_list:
+        if c['name'] == 'report-url':
+            vals.append('--' + c['name'])
+            vals.append(c['value'])
+    return vals
+
+
+def get_report_date_range(filename):
+    regex = "[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{4}-[0-9]{2}-[0-9]{2}"
+    return re.search(regex, filename).group()
+
+
+def run():
+    # cache World Reader API responses for all MODES
+    for m in MODES:
+        cmd = ['./retrieve_wr_stats',
+               '--name', m['name'],
+               '--outdir', CACHEDIR] + compile_report_urls(m['config'])
+        subprocess.call(cmd)
+
+    # get a list of all unique dates reported in cache
+    all_ranges = [get_report_date_range(f) for f in glob(CACHEDIR + '/*.json')]
+    date_ranges = list(set(all_ranges))  # get unique values
+    date_ranges.sort()
+
+    # now we standarise WR reports and store them in each output CSV
+    for date in date_ranges:
+        out_file = get_output_filename(OUTDIR, date)
+        output_stream = outstream(out_file)
+        i = 0
+        for m in MODES:
+            pattern = CACHEDIR + '/' + m['name'] + '_' + date + '.json'
+            matched_files = glob(pattern)
+            if len(matched_files) == 0:
+                continue
+            cache_file = matched_files[0]
+            input_stream = instream(cache_file)
+            headers = ['--add-headers'] if 1 == 0 else []  # only 1st iteration
+            i += 1
+            cmd = ['./resolve_reports', '--measure', m['measure']] + headers
+            subprocess.call(cmd, stdout=output_stream, stdin=input_stream)
+
+
+if __name__ == '__main__':
+    run()
