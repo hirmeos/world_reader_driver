@@ -62,7 +62,7 @@ def run():
                 continue
             cache_file = matched_files[0]
             input_stream = instream(cache_file)
-            headers = ['--add-headers'] if 1 == 0 else []  # only 1st iteration
+            headers = ['--add-headers'] if i == 0 else []  # only 1st iteration
             i += 1
             cmd = ['./resolve_reports', '--measure', m['measure']] + headers
             subprocess.call(cmd, stdout=output_stream, stdin=input_stream)
