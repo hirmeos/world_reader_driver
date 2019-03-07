@@ -28,7 +28,7 @@ ARGS = [
         'dest': 'measure',
         'action': 'store',
         'default': None,
-        'help': 'Measure URI, e.g. tag:operas.eu,2018:readership:world-reader'
+        'help': 'URI eg. http://metrics.operas-eu.org/world-reader/users/v1'
     }, {
         'val': '--add-headers',
         'dest': 'add_headers',
