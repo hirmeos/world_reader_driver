@@ -1,5 +1,5 @@
 # World Reader Driver
-[![Build Status](https://travis-ci.org/hirmeos/world_reader_driver.svg?branch=master)](https://travis-ci.org/hirmeos/world_reader_driver)
+[![Build Status](https://travis-ci.org/hirmeos/world_reader_driver.svg?branch=master)](https://travis-ci.org/hirmeos/world_reader_driver) [![Release](https://img.shields.io/github/release/hirmeos/world_reader_driver.svg?colorB=58839b)](https://github.com/hirmeos/world_reader_driver/releases) [![License](https://img.shields.io/github/license/hirmeos/world_reader_driver.svg?colorB=ff0000)](https://github.com/hirmeos/world_reader_driver/blob/master/LICENSE)
 
 
 ## Run via crontab

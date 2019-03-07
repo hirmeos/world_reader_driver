@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import re
 import os
@@ -36,7 +36,7 @@ def get_report(url):
     except AssertionError:
         m = "Could not retrieve WR report (%d): %s"
         sys.stderr.write(m % (res.status, url))
-    return json.loads(content)
+    return json.loads(content.decode('utf-8'))
 
 
 def get_api_url(url):
@@ -57,6 +57,13 @@ def get_date_range(report):
             # e.g. "2018-06-01~2018-06-30"
             return param['value'].replace('~', '_')
     return ""
+
+
+def contains_data(report):
+    """Check whether the report is actually empty
+    WR returns a success response even when the report does not contain data
+    """
+    return len(report['data']['rows']) > 0
 
 
 def get_output_filename(odir, name, date):
@@ -102,7 +109,7 @@ def run():
             raise
         filename = get_output_filename(options.outdir, options.report_name,
                                        daterange)
-        if not exists_and_not_empty(filename):
+        if not exists_and_not_empty(filename) and contains_data(report):
             with open(filename, 'w') as f:
                 json.dump(report, f)
 
