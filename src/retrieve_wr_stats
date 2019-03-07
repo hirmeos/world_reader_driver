@@ -59,6 +59,13 @@ def get_date_range(report):
     return ""
 
 
+def contains_data(report):
+    """Check whether the report is actually empty
+    WR returns a success response even when the report does not contain data
+    """
+    return len(report['data']['rows']) > 0
+
+
 def get_output_filename(odir, name, date):
     return "%s/%s_%s.json" % (odir, name, date)
 
@@ -102,7 +109,7 @@ def run():
             raise
         filename = get_output_filename(options.outdir, options.report_name,
                                        daterange)
-        if not exists_and_not_empty(filename):
+        if not exists_and_not_empty(filename) and contains_data(report):
             with open(filename, 'w') as f:
                 json.dump(report, f)
 
