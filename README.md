@@ -75,4 +75,4 @@ MODES=[{"measure":"https://metrics.operas-eu.org/world-reader/users/v1","name":"
 ```
 
 [1]: https://github.com/hirmeos/identifier_translation_service "Identifier Translation Service"
-[2]: https://github.com/hirmeos/countries_api "Countried API"
+[2]: https://github.com/hirmeos/countries_api "Countries API"
